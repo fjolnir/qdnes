@@ -40,7 +40,8 @@ typedef enum {
     taot_zeropage_y,   // INST $OF, X
     taot_indirect,     // INST ($ADDR)
     taot_indirect_x,   // INST ($AD, X) ; *(addr+x)
-    taot_indirect_y    // INST ($AD), Y ; *addr + y
+    taot_indirect_y,   // INST ($AD), Y ; *addr + y
+    taot_relative      // INST LABEL ;only used for branches
 } taot_addr_mode;
 
 typedef enum {
@@ -265,71 +266,56 @@ static const uint64_t taot_translation_table[0xff] = {
     [0xce] = taot_DEC | ((uint64_t)taot_absolute   << 32),
     [0xde] = taot_DEC | ((uint64_t)taot_absolute_y << 32),
 
-    [0xe8] = taot_INX,
-    [0xca] = taot_DEX,
-    [0xc8] = taot_INY,
-    [0x88] = taot_DEY,
+    [0xe8] = taot_INX | ((uint64_t)taot_implied << 32),
+    [0xca] = taot_DEX | ((uint64_t)taot_implied << 32),
+    [0xc8] = taot_INY | ((uint64_t)taot_implied << 32),
+    [0x88] = taot_DEY | ((uint64_t)taot_implied << 32),
 
     // Register moves
-    [0xaa] = taot_TAX,
-    [0xa8] = taot_TAY,
-    [0x8a] = taot_TXA,
-    [0x98] = taot_TYA,
-    [0x9a] = taot_TXS,
-    [0xba] = taot_TSX,
+    [0xaa] = taot_TAX | ((uint64_t)taot_implied << 32),
+    [0xa8] = taot_TAY | ((uint64_t)taot_implied << 32),
+    [0x8a] = taot_TXA | ((uint64_t)taot_implied << 32),
+    [0x98] = taot_TYA | ((uint64_t)taot_implied << 32),
+    [0x9a] = taot_TXS | ((uint64_t)taot_implied << 32),
+    [0xba] = taot_TSX | ((uint64_t)taot_implied << 32),
 
     // Flag operations
-    [0x18] = taot_CLC,
-    [0x38] = taot_SEC,
-    [0x58] = taot_CLI,
-    [0x78] = taot_SEI,
-    [0xb8] = taot_CLV,
-    [0xd8] = taot_CLD,
-    [0xf8] = taot_SED,
+    [0x18] = taot_CLC | ((uint64_t)taot_implied << 32),
+    [0x38] = taot_SEC | ((uint64_t)taot_implied << 32),
+    [0x58] = taot_CLI | ((uint64_t)taot_implied << 32),
+    [0x78] = taot_SEI | ((uint64_t)taot_implied << 32),
+    [0xb8] = taot_CLV | ((uint64_t)taot_implied << 32),
+    [0xd8] = taot_CLD | ((uint64_t)taot_implied << 32),
+    [0xf8] = taot_SED | ((uint64_t)taot_implied << 32),
 
     // Branches
-    [0x10] = taot_BPL,
-    [0x30] = taot_BMI,
-    [0x50] = taot_BVC,
-    [0x70] = taot_BVS,
-    [0x90] = taot_BCC,
-    [0xb0] = taot_BCS,
-    [0xd0] = taot_BNE,
-    [0xf0] = taot_BEQ,
+    [0x10] = taot_BPL | ((uint64_t)taot_relative << 32),
+    [0x30] = taot_BMI | ((uint64_t)taot_relative << 32),
+    [0x50] = taot_BVC | ((uint64_t)taot_relative << 32),
+    [0x70] = taot_BVS | ((uint64_t)taot_relative << 32),
+    [0x90] = taot_BCC | ((uint64_t)taot_relative << 32),
+    [0xb0] = taot_BCS | ((uint64_t)taot_relative << 32),
+    [0xd0] = taot_BNE | ((uint64_t)taot_relative << 32),
+    [0xf0] = taot_BEQ | ((uint64_t)taot_relative << 32),
 
     // Jumps
-    [0x4c] = taot_JMP,
-    [0x6c] = taot_JMPI,
+    [0x4c] = taot_JMP | ((uint64_t)taot_implied << 32),
+    [0x6c] = taot_JMPI | ((uint64_t)taot_implied << 32),
 
     // Procedure calls
-    [0x20] = taot_JSR,
-    [0x60] = taot_RTS,
-    [0x00] = taot_BRK,
-    [0x40] = taot_RTI,
+    [0x20] = taot_JSR | ((uint64_t)taot_absolute << 32),
+    [0x60] = taot_RTS | ((uint64_t)taot_absolute << 32),
+    [0x00] = taot_BRK | ((uint64_t)taot_absolute << 32),
+    [0x40] = taot_RTI | ((uint64_t)taot_absolute << 32),
 
     // Stack operations
-    [0x48] = taot_PHA,
-    [0x68] = taot_PLA,
-    [0x08] = taot_PHP,
-    [0x28] = taot_PLP,
+    [0x48] = taot_PHA | ((uint64_t)taot_implied << 32),
+    [0x68] = taot_PLA | ((uint64_t)taot_implied << 32),
+    [0x08] = taot_PHP | ((uint64_t)taot_implied << 32),
+    [0x28] = taot_PLP | ((uint64_t)taot_implied << 32),
 
     // No-op
-    [0xea] = taot_NOOP,
-};
-
-static uint8_t const taot_operand_sizes[] = {
-    [taot_immediate]  = 1,
-    [taot_absolute]   = 2,
-    [taot_zeropage]   = 1,
-    [taot_implied]    = 0,
-    [taot_accum]      = 0,
-    [taot_absolute_x] = 2,
-    [taot_absolute_y] = 2,
-    [taot_zeropage_x] = 1,
-    [taot_zeropage_y] = 1,
-    [taot_indirect]   = 2,
-    [taot_indirect_x] = 1,
-    [taot_indirect_y] = 1
+    [0xea] = taot_NOOP | ((uint64_t)taot_implied << 32),
 };
 
 static uint8_t taot_cycles[] = {

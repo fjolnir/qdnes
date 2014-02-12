@@ -4,11 +4,15 @@
 #import <string.h>
 #import <assert.h>
 
-uint64_t taot_loadinst(taot *cpu, taot_inst *out_inst, taot_addr_mode *out_mode);
-uint16_t taot_load_operand(taot *cpu, uint32_t pc, taot_addr_mode mode);
+void taot_loadinst(taot *cpu, taot_inst *out_inst, taot_addr_mode *out_mode);
+uint16_t taot_load_operand(taot *cpu, taot_addr_mode mode);
 uint8_t taot_loadmem8(taot *cpu, uint16_t addr);
 uint16_t taot_loadmem16(taot *cpu, uint16_t addr);
 void taot_storemem8(taot *cpu, uint16_t addr, uint8_t val);
+void taot_push8(taot *cpu, uint8_t val);
+uint8_t taot_pop8(taot *cpu);
+uint8_t taot_pop8_pc(taot *cpu);
+uint16_t taot_pop16_pc(taot *cpu);
 
 void taot_init(taot *cpu)
 {
@@ -34,50 +38,67 @@ void taot_cycle(taot *cpu)
 {
     taot_inst op;
     taot_addr_mode addr_mode;
-    uint32_t const op_addr = taot_loadinst(cpu, &op, &addr_mode);
-    uint16_t const operand_addr = taot_load_operand(cpu, op_addr, addr_mode);
-    cpu->regs.pc += taot_operand_sizes[addr_mode];
+    uint16_t const old_pc = cpu->regs.pc;
+    taot_loadinst(cpu, &op, &addr_mode);
+    uint16_t const operand_addr = taot_load_operand(cpu, addr_mode);
 
-    fprintf(stderr, "op@0x%x: 0x%x operand: 0x%x\n", op_addr, op, addr_mode);
+    fprintf(stderr, "op@0x%.2x=0x%.2x: 0x%.2x operand: 0x%.2x (size: %d)\n", old_pc, taot_loadmem8(cpu, old_pc), op, addr_mode, cpu->regs.pc-old_pc-1);
 //    taot_perform_op(cpu, op, operand_addr);
 
-#define SIGN_CHK(x)     (((x) & 0x80)   ? taot_sign_flag     : 0)
-#define ZERO_CHK(x)     (((x) == 0)     ? taot_zero_flag     : 0)
-#define CARRY_CHK(x)    (((x) > 255)    ? taot_carry_flag    : 0)
-#define BIT6_CHK(x)     ((((x) >> 6)&1) ? taot_overflow_flag : 0)
-#define OVERFLOW_CHK(x, res) ( \
-        (   (((x)   ^ cpu->regs.acc) & 0x80) == 0 \
-         && (((res) ^ cpu->regs.acc) & 0x80) == 0x80 \
-        ) \
-        ? taot_overflow_flag : 0 \
-)
-#define UPDATE_FLAGS(new_flags...) cpu->regs.flags &= ~(new_flags)
-    uint32_t temp; // For ops where the extra bits are helpful
+#define SET_FLAG(name, status...) if(status) cpu->regs.flags |=  taot_##name##_flag; \
+                                  else       cpu->regs.flags &= ~taot_##name##_flag;
+
+#define SIGN_CHK(x)  SET_FLAG(sign, (x) & 0x80)
+#define ZERO_CHK(x)  SET_FLAG(zero, (x) == 0)
+#define CARRY_CHK(x) SET_FLAG(carry, (x) > 255)
+#define BIT6_CHK(x)  SET_FLAG(overflow, ((x) >> 6)&1)
+
+#define OVERFLOW_CHK(before, after) do { \
+    typeof(before) const before_ = (before); \
+    typeof(after)  const after_  = (after); \
+    SET_FLAG(overflow, \
+             ((before ^ cpu->regs.acc) & 0x80) == 0 \
+          && ((after  ^ cpu->regs.acc) & 0x80) == 0x80); \
+} while(0);
+
+
+#define LETVAL(val_, checks...) do { \
+    typeof(val_) const val = (val_); \
+    checks; \
+} while(0)
+
+    uint32_t t1, t2; // For ops where the extra bits are helpful
     switch(op) {
         case taot_ADC: // add with carry
-            temp = cpu->regs.acc 
+            t1 = cpu->regs.acc 
                  + (cpu->regs.flags|taot_carry_flag ? 1 : 0)
                  + taot_loadmem8(cpu, operand_addr);
-            UPDATE_FLAGS(OVERFLOW_CHK(taot_loadmem8(cpu, operand_addr), temp)
-                       | CARRY_CHK(temp)
-                       | SIGN_CHK(temp)
-                       | ZERO_CHK(temp));
-            cpu->regs.acc = temp & 0xff;
+            LETVAL(t1,
+                   OVERFLOW_CHK(val, taot_loadmem8(cpu, operand_addr))
+                   CARRY_CHK(val)
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
+            cpu->regs.acc = t1 & 0xff;
             break;
         case taot_AND: // and (with accumulator)
-            cpu->regs.acc &= taot_loadmem8(cpu, operand_addr);
-            UPDATE_FLAGS(SIGN_CHK(cpu->regs.acc) | ZERO_CHK(cpu->regs.acc));
+            LETVAL(cpu->regs.acc &= taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_ASL: // arithmetic shift left
             if(addr_mode == taot_accum) {
-                UPDATE_FLAGS(CARRY_CHK(cpu->regs.acc));
-                cpu->regs.acc >>= 1;
-                UPDATE_FLAGS(SIGN_CHK(cpu->regs.acc) | ZERO_CHK(cpu->regs.acc));
+                LETVAL(cpu->regs.acc,
+                       CARRY_CHK(val));
+                LETVAL(cpu->regs.acc <<= 1,
+                       SIGN_CHK(val)
+                       ZERO_CHK(val));
             } else {
-                UPDATE_FLAGS(CARRY_CHK(taot_loadmem8(cpu, operand_addr)));
+                LETVAL(taot_loadmem8(cpu, operand_addr),
+                       CARRY_CHK(val));
                 taot_storemem8(cpu, operand_addr, taot_loadmem8(cpu, operand_addr) << 1);
-                UPDATE_FLAGS(SIGN_CHK(taot_loadmem8(cpu, operand_addr))
-                           | ZERO_CHK(taot_loadmem8(cpu, operand_addr)));
+                LETVAL(taot_loadmem8(cpu, operand_addr),
+                       SIGN_CHK(val)
+                       ZERO_CHK(val));
             }
             break;
         case taot_BCC: // branch on carry clear
@@ -93,16 +114,17 @@ void taot_cycle(taot *cpu)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BIT: // bit test
-            temp = taot_loadmem8(cpu, operand_addr);
-            UPDATE_FLAGS(SIGN_CHK(temp)
-                       | BIT6_CHK(temp)
-                       | ZERO_CHK(temp & cpu->regs.acc));
+            LETVAL((int32_t)taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   BIT6_CHK(val)
+                   ZERO_CHK(val & cpu->regs.acc));
             break;
         case taot_BMI: // branch on minus (negative set)
             if((cpu->regs.flags & taot_sign_flag) != 0)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BNE: // branch on not equal (zero clear)
+            printf("branch? %d -> 0x%x\n", cpu->regs.flags&taot_zero_flag, operand_addr);
             if((cpu->regs.flags & taot_zero_flag) != 0)
                 cpu->regs.pc = operand_addr;
             break;
@@ -122,103 +144,177 @@ void taot_cycle(taot *cpu)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_CLC: // clear carry
-            cpu->regs.flags &= ~(taot_carry_flag);
+            SET_FLAG(carry, false);
             break;
         case taot_CLD: // clear decimal
             goto unhandled_inst;
             break;
         case taot_CLI: // clear interrupt disable
-            cpu->regs.flags &= ~(taot_interrupt_flag);
+            SET_FLAG(interrupt, false);
             break;
         case taot_CLV: // clear overflow
-            cpu->regs.flags &= ~(taot_overflow_flag);
+            SET_FLAG(overflow, false);
             break;
         case taot_CMP: // compare (with accumulator)
-            temp = cpu->regs.acc - taot_loadmem8(cpu, operand_addr);
-            UPDATE_FLAGS(SIGN_CHK(temp)
-                       | (temp >= 0) ? taot_carry_flag : 0
-                       | ((temp & 0xff) != 0) ? taot_zero_flag : 0);
+            LETVAL(cpu->regs.acc - taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   SET_FLAG(carry, val >= 0)
+                   SET_FLAG(zero, (val & 0xff) != 0));
             break;
         case taot_CPX: // compare with X
-            temp = cpu->regs.x - taot_loadmem8(cpu, operand_addr);
-            UPDATE_FLAGS(SIGN_CHK(temp)
-                       | (temp >= 0) ? taot_carry_flag : 0
-                       | ((temp & 0xff) != 0) ? taot_zero_flag : 0);
+            LETVAL(cpu->regs.x - taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   SET_FLAG(carry, val >= 0)
+                   SET_FLAG(zero, (val & 0xff) != 0));
             break;
         case taot_CPY: // compare with Y
-            temp = cpu->regs.y - taot_loadmem8(cpu, operand_addr);
-            UPDATE_FLAGS(SIGN_CHK(temp)
-                       | (temp >= 0) ? taot_carry_flag : 0
-                       | ((temp & 0xff) != 0) ? taot_zero_flag : 0);
+            LETVAL(cpu->regs.y - taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   SET_FLAG(carry, val >= 0)
+                   SET_FLAG(zero, (val & 0xff) != 0));
             break;
         case taot_DEC: // decrement
             taot_storemem8(cpu, operand_addr, taot_loadmem8(cpu, operand_addr)-1);
-            UPDATE_FLAGS(SIGN_CHK(taot_loadmem8(cpu, operand_addr))
-                       | ZERO_CHK(taot_loadmem8(cpu, operand_addr)));
+            LETVAL(taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_DEX: // decrement X
-            --cpu->regs.x;
-            UPDATE_FLAGS(SIGN_CHK(cpu->regs.x)
-                       | ZERO_CHK(cpu->regs.x));
+            LETVAL(--cpu->regs.x,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_DEY: // decrement Y
-            --cpu->regs.y;
-            UPDATE_FLAGS(SIGN_CHK(cpu->regs.y)
-                       | ZERO_CHK(cpu->regs.y));
+            LETVAL(--cpu->regs.x,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_EOR: // exclusive or (with accumulator)
+            LETVAL(cpu->regs.acc ^= taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_INC: // increment
+            taot_storemem8(cpu, operand_addr, taot_loadmem8(cpu, operand_addr)+1);
+            LETVAL(taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_INX: // increment X
+            LETVAL(++cpu->regs.x,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_INY: // increment Y
-            break;
-        case taot_JMP: // jump
+            LETVAL(++cpu->regs.x,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_JSR: // jump subroutine
+            taot_push8(cpu, cpu->regs.pc >> 8);
+            taot_push8(cpu, cpu->regs.pc & 0xff);
+        case taot_JMP: // jump
+            cpu->regs.pc = operand_addr;
             break;
         case taot_LDA: // load accumulator
+            LETVAL(cpu->regs.acc = taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_LDX: // load X
-            cpu->regs.x = taot_loadmem8(cpu, operand_addr);
-            UPDATE_FLAGS(SIGN_CHK(cpu->regs.x) | ZERO_CHK(cpu->regs.x));
+            LETVAL(cpu->regs.x = taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_LDY: // load Y
-            cpu->regs.y = taot_loadmem8(cpu, operand_addr);
-            UPDATE_FLAGS(SIGN_CHK(cpu->regs.y) | ZERO_CHK(cpu->regs.y));
+            LETVAL(cpu->regs.y = taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_LSR: // logical shift right
+            if(addr_mode == taot_accum) {
+                LETVAL(cpu->regs.acc,
+                       SET_FLAG(carry, val & 0x1));
+                cpu->regs.acc >>= 1;
+            } else {
+                LETVAL(taot_loadmem8(cpu, operand_addr),
+                       SET_FLAG(carry, val & 0x1));
+                taot_storemem8(cpu, operand_addr, taot_loadmem8(cpu, operand_addr) >> 1);
+            }
             break;
         case taot_NOP: // no operation
             break;
         case taot_ORA: // or with accumulator
+            LETVAL(cpu->regs.acc |= taot_loadmem8(cpu, operand_addr),
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_PHA: // push accumulator
+            taot_push8(cpu, cpu->regs.acc);
             break;
         case taot_PHP: // push processor status (SR)
+            taot_push8(cpu, cpu->regs.flags | taot_breakpoint_flag);
             break;
         case taot_PLA: // pull accumulator
+            cpu->regs.acc = taot_pop8(cpu);
             break;
         case taot_PLP: // pull processor status (SR)
+            cpu->regs.flags = taot_pop8(cpu);
             break;
         case taot_ROL: // rotate left
+            t1 = addr_mode == taot_accum
+                 ? cpu->regs.acc
+                 : taot_loadmem8(cpu, operand_addr);
+            t2 = cpu->regs.flags & taot_carry_flag;
+            SET_FLAG(carry, (cpu->regs.acc >> 7) & 0x1);
+            t1 = (cpu->regs.acc << 1) | t2;
+
+            if(addr_mode == taot_accum)
+                cpu->regs.acc = t1;
+            else
+                taot_storemem8(cpu, operand_addr, t1);
             break;
         case taot_ROR: // rotate right
+            t1 = addr_mode == taot_accum
+               ? cpu->regs.acc
+               : taot_loadmem8(cpu, operand_addr);
+            t2 = cpu->regs.flags & taot_carry_flag;
+            SET_FLAG(carry, (cpu->regs.acc >> 7) & 0x1);
+            t1 = (cpu->regs.acc >> 1) | (t2 << 7);
+
+            if(addr_mode == taot_accum)
+                cpu->regs.acc = t1;
+            else
+                taot_storemem8(cpu, operand_addr, t1);
             break;
         case taot_RTI: // return from interrupt
+            goto unhandled_inst; // TODO
             break;
         case taot_RTS: // return from subroutine
+            cpu->regs.pc = taot_pop8(cpu) | (taot_pop8(cpu) << 8);
             break;
         case taot_SBC: // subtract with carry
+            t1 = cpu->regs.acc 
+               - (cpu->regs.flags|taot_carry_flag ? 0 : 1)
+               - taot_loadmem8(cpu, operand_addr);
+            LETVAL(t1,
+                   OVERFLOW_CHK(val, taot_loadmem8(cpu, operand_addr))
+                   CARRY_CHK(val)
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
+            cpu->regs.acc = t1 & 0xff;
             break;
         case taot_SEC: // set carry
+            SET_FLAG(carry, true);
             break;
         case taot_SED: // set decimal
+            goto unhandled_inst;
             break;
         case taot_SEI: // set interrupt disable
+            SET_FLAG(interrupt, true);
             break;
         case taot_STA: // store accumulator
+            taot_storemem8(cpu, operand_addr, cpu->regs.acc);
             break;
         case taot_STX: // store X
             taot_storemem8(cpu, operand_addr, cpu->regs.x);
@@ -227,16 +323,34 @@ void taot_cycle(taot *cpu)
             taot_storemem8(cpu, operand_addr, cpu->regs.y);
             break;
         case taot_TAX: // transfer accumulator to X
+            LETVAL(cpu->regs.x = cpu->regs.acc,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_TAY: // transfer accumulator to Y
+            LETVAL(cpu->regs.y = cpu->regs.acc,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_TSX: // transfer stack pointer to X
+            LETVAL(cpu->regs.x = cpu->regs.sp,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_TXA: // transfer X to accumulator
+            LETVAL(cpu->regs.acc = cpu->regs.x,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_TXS: // transfer X to stack pointer
+            LETVAL(cpu->regs.sp = cpu->regs.x,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_TYA: // transfer Y to accumulator
+            LETVAL(cpu->regs.acc = cpu->regs.y,
+                   SIGN_CHK(val)
+                   ZERO_CHK(val));
             break;
         case taot_INVALID:
         default:
@@ -262,50 +376,71 @@ void taot_storemem8(taot *cpu, uint16_t addr, uint8_t val)
      cpu->mem[addr] = val;
 }
 
-uint64_t taot_loadinst(taot *cpu, taot_inst *out_inst, taot_addr_mode *out_mode)
+void taot_loadinst(taot *cpu, taot_inst *out_inst, taot_addr_mode *out_mode)
 {
-    uint64_t const op = taot_translation_table[taot_loadmem8(cpu, cpu->regs.pc)];
+    uint64_t const op = taot_translation_table[taot_pop8_pc(cpu)];
 
     *out_inst = op & 0xffff;
     *out_mode = op >> 32;
-
-    return cpu->regs.pc++;
 }
 
-uint16_t taot_load_operand(taot *cpu, uint32_t op_addr, taot_addr_mode mode)
+uint16_t taot_load_operand(taot *cpu, taot_addr_mode mode)
 {
     switch(mode) {
         case taot_immediate:
-            return op_addr+1;
+            return cpu->regs.pc++;
         case taot_implied:
             return 0;
         case taot_absolute:
-            return taot_loadmem16(cpu, op_addr+1);
+            return taot_pop16_pc(cpu);
         case taot_zeropage:
-            return taot_loadmem8(cpu, op_addr+1);
+            return taot_pop8_pc(cpu);
         case taot_accum:
             return cpu->regs.acc;
         case taot_absolute_x:
-            return taot_loadmem16(cpu, op_addr+1) + cpu->regs.x;
+            return taot_pop16_pc(cpu) + cpu->regs.x;
         case taot_absolute_y:
-            return taot_loadmem16(cpu, op_addr+1) + cpu->regs.y;
+            return taot_pop16_pc(cpu) + cpu->regs.y;
         case taot_zeropage_x:
-            return (taot_loadmem8(cpu, op_addr+1) + cpu->regs.x) & 0xff;
+            return (taot_pop8_pc(cpu) + cpu->regs.x) & 0xff;
         case taot_zeropage_y:
-            return (taot_loadmem8(cpu, op_addr+1) + cpu->regs.y) & 0xff;
+            return (taot_pop8_pc(cpu) + cpu->regs.y) & 0xff;
         case taot_indirect:
             assert(0); // TODO!!!
 //            uint16_t const addr = taot_loadmem16(cpu, op_addr+2);
         case taot_indirect_x:
-            return taot_loadmem16(cpu, (taot_loadmem8(cpu, op_addr+2) + cpu->regs.x) & 0xff);
+            return taot_loadmem16(cpu, (taot_pop8_pc(cpu) + cpu->regs.x) & 0xff);
         case taot_indirect_y:
-            return taot_loadmem16(cpu, (taot_loadmem8(cpu, op_addr+2)) + cpu->regs.y);
+            return taot_loadmem16(cpu, (taot_pop8_pc(cpu) + cpu->regs.y));
+        case taot_relative:
+            return cpu->regs.pc + 1 + (int8_t)taot_pop8_pc(cpu);
         default:
             fprintf(stderr, "Invalid addressing mode: %d\n", mode);
             assert(0);
     }
 }
 
+void taot_push8(taot *cpu, uint8_t val)
+{
+    taot_storemem8(cpu, 0x100 | cpu->regs.sp, val);
+    --cpu->regs.sp;
+}
+
+uint8_t taot_pop8(taot *cpu)
+{
+    return taot_loadmem8(cpu, cpu->regs.sp++);
+}
+
+uint8_t taot_pop8_pc(taot *cpu)
+{
+    return taot_loadmem8(cpu, cpu->regs.pc++);
+}
+uint16_t taot_pop16_pc(taot *cpu)
+{
+    uint16_t const val = taot_loadmem16(cpu, cpu->regs.pc);
+    cpu->regs.pc += 2;
+    return val;
+}
 
 void taot_dumpregs(taot *cpu)
 {
