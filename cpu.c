@@ -42,7 +42,7 @@ void taot_cycle(taot *cpu)
     taot_loadinst(cpu, &op, &addr_mode);
     uint16_t const operand_addr = taot_load_operand(cpu, addr_mode);
 
-    fprintf(stderr, "PC=0x%.4x %s 0x%.4x\n", old_pc, taot_instruction_names[op], operand_addr);
+    fprintf(stderr, "\e[34m0x%.4x\e[39m \e[1m%s\e[0m 0x%.4x\n", old_pc, taot_instruction_names[op], operand_addr);
 //    taot_perform_op(cpu, op, operand_addr);
 
 #define SET_FLAG(name, status...) if(status) cpu->regs.flags |=  taot_##name##_flag; \
@@ -443,13 +443,12 @@ uint16_t taot_pop16_pc(taot *cpu)
 
 void taot_dumpregs(taot *cpu)
 {
-    fputs("Registers:\n", stderr);
-    fprintf(stderr, "  ACC    = 0x%x\n", cpu->regs.acc);
-    fprintf(stderr, "  X      = 0x%x\n", cpu->regs.x);
-    fprintf(stderr, "  Y      = 0x%x\n", cpu->regs.y);
-    fprintf(stderr, "  SP     = 0x%x\n", cpu->regs.sp);
-    fprintf(stderr, "  PC     = 0x%x\n", cpu->regs.pc);
-    fprintf(stderr, "  STATUS = 0x%x\n\n", cpu->regs.flags);
+    fprintf(stderr, "\e[1mACC\e[0m    = 0x%x\n", cpu->regs.acc);
+    fprintf(stderr, "\e[1mX\e[0m      = 0x%x\n", cpu->regs.x);
+    fprintf(stderr, "\e[1mY\e[0m      = 0x%x\n", cpu->regs.y);
+    fprintf(stderr, "\e[1mSP\e[0m     = 0x%x\n", cpu->regs.sp);
+    fprintf(stderr, "\e[1mPC\e[0m     = 0x%x\n", cpu->regs.pc);
+    fprintf(stderr, "\e[1mSTATUS\e[0m = 0x%x\n\n", cpu->regs.flags);
 }
 
 void taot_dumpmem(taot *cpu, uint16_t start, uint16_t end)
@@ -461,9 +460,8 @@ void taot_dumpmem(taot *cpu, uint16_t start, uint16_t end)
     else
         end = MIN(sizeof(cpu->mem)-1, end + (end + 1)%line_len);
 
-    fprintf(stderr, "Bytes %d to %d (out of: %lu):\n", start, end, sizeof(cpu->mem));
     for(uint16_t i = start; i <= end; i += line_len) {
-        fprintf(stderr, "0x%.4x: ", i);
+        fprintf(stderr, "\e[34m0x%.4x\e[39m \e[31m", i);
         // HEX
         for(uint16_t j = i; j < i+line_len; j += 4) {
             fprintf(stderr, "%.2x%.2x%.2x%.2x ",
@@ -471,9 +469,9 @@ void taot_dumpmem(taot *cpu, uint16_t start, uint16_t end)
         }
         // ASCII
         char str_buf[line_len];
-        char *c = str_buf;
         memcpy(str_buf, cpu->mem+i, sizeof(str_buf));
-        DUFF(sizeof(str_buf), if(!INRANGE(*c++, 0x20, 0x7e)) *(c-1) = '.');
-        fprintf(stderr, "| %s\n", str_buf);
+        for(int i = 0; i < sizeof(str_buf); ++i)
+            if(!INRANGE(str_buf[i], 0x20, 0x7e)) str_buf[i] = '.';
+        fprintf(stderr, "\e[39m| %s\n", str_buf);
     }
 }
