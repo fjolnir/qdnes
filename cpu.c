@@ -42,7 +42,7 @@ void taot_cycle(taot *cpu)
     taot_loadinst(cpu, &op, &addr_mode);
     uint16_t const operand_addr = taot_load_operand(cpu, addr_mode);
 
-    fprintf(stderr, "op@0x%.2x=0x%.2x: 0x%.2x operand: 0x%.2x (size: %d)\n", old_pc, taot_loadmem8(cpu, old_pc), op, addr_mode, cpu->regs.pc-old_pc-1);
+    fprintf(stderr, "PC=0x%.4x %s 0x%.4x\n", old_pc, taot_instruction_names[op], operand_addr);
 //    taot_perform_op(cpu, op, operand_addr);
 
 #define SET_FLAG(name, status...) if(status) cpu->regs.flags |=  taot_##name##_flag; \
@@ -124,7 +124,6 @@ void taot_cycle(taot *cpu)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BNE: // branch on not equal (zero clear)
-            printf("branch? %d -> 0x%x\n", cpu->regs.flags&taot_zero_flag, operand_addr);
             if((cpu->regs.flags & taot_zero_flag) != 0)
                 cpu->regs.pc = operand_addr;
             break;

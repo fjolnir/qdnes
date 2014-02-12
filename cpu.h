@@ -44,83 +44,95 @@ typedef enum {
     taot_relative      // INST LABEL ;only used for branches
 } taot_addr_mode;
 
+#define TAOT_INSTRUCTIONS \
+    TAOT_INST(INVALID) /* Invalid instrution */ \
+\
+    TAOT_INST(ADC)     /* Add Memory to Accumulator with Carry */ \
+    TAOT_INST(AND)     /* "AND" Memory with Accumulator */ \
+    TAOT_INST(ASL)     /* Shift Left One Bit (Memory or Accumulator) */ \
+\
+    TAOT_INST(BCC)     /* Branch on Carry Clear */ \
+    TAOT_INST(BCS)     /* Branch on Carry Set */ \
+    TAOT_INST(BEQ)     /* Branch on Result Zero */ \
+    TAOT_INST(BIT)     /* Test Bits in Memory with Accumulator */ \
+    TAOT_INST(BMI)     /* Branch on Result Minus */ \
+    TAOT_INST(BNE)     /* Branch on Result not Zero */ \
+    TAOT_INST(BPL)     /* Branch on Result Plus */ \
+    TAOT_INST(BRK)     /* Force Break */ \
+    TAOT_INST(BVC)     /* Branch on Overflow Clear */ \
+    TAOT_INST(BVS)     /* Branch on Overflow Set */ \
+\
+    TAOT_INST(CLC)     /* Clear Carry Flag */ \
+    TAOT_INST(CLD)     /* Clear Decimal Mode */ \
+    TAOT_INST(CLI)     /* Clear interrupt Disable Bit */ \
+    TAOT_INST(CLV)     /* Clear Overflow Flag */ \
+    TAOT_INST(CMP)     /* Compare Memory and Accumulator */ \
+    TAOT_INST(CPX)     /* Compare Memory and Index X */ \
+    TAOT_INST(CPY)     /* Compare Memory and Index Y */ \
+\
+    TAOT_INST(DEC)     /* Decrement Memory by One */ \
+    TAOT_INST(DEX)     /* Decrement Index X by One */ \
+    TAOT_INST(DEY)     /* Decrement Index Y by One */ \
+\
+    TAOT_INST(EOR)     /* "Exclusive-Or" Memory with Accumulator */ \
+\
+    TAOT_INST(INC)     /* Increment Memory by One */ \
+    TAOT_INST(INX)     /* Increment Index X by One */ \
+    TAOT_INST(INY)     /* Increment Index Y by One */ \
+\
+    TAOT_INST(JMP)     /* Jump to New Location */ \
+    TAOT_INST(JMPI)     /* Jump to New Location */ \
+\
+    TAOT_INST(JSR)     /* Jump to New Location Saving Return Address */ \
+\
+    TAOT_INST(LDA)     /* Load Accumulator with Memory */ \
+    TAOT_INST(LDX)     /* Load Index X with Memory */ \
+    TAOT_INST(LDY)     /* Load Index Y with Memory */ \
+    TAOT_INST(LSR)     /* Shift Right One Bit (Memory or Accumulator) */ \
+\
+    TAOT_INST(NOP)     /* No Operation */ \
+\
+    TAOT_INST(ORA)     /* "OR" Memory with Accumulator */ \
+\
+    TAOT_INST(PHA)     /* Push Accumulator on Stack */ \
+    TAOT_INST(PHP)     /* Push Processor Status on Stack */ \
+    TAOT_INST(PLA)     /* Pull Accumulator from Stack */ \
+    TAOT_INST(PLP)     /* Pull Processor Status from Stack */ \
+\
+    TAOT_INST(ROL)     /* Rotate One Bit Left (Memory or Accumulator) */ \
+    TAOT_INST(ROR)     /* Rotate One Bit Right (Memory or Accumulator) */ \
+    TAOT_INST(RTI)     /* Return from Interrupt */ \
+    TAOT_INST(RTS)     /* Return from Subroutine */ \
+\
+    TAOT_INST(SBC)     /* Subtract Memory from Accumulator with Borrow */ \
+    TAOT_INST(SEC)     /* Set Carry Flag */ \
+    TAOT_INST(SED)     /* Set Decimal Mode */ \
+    TAOT_INST(SEI)     /* Set Interrupt Disable Status */ \
+    TAOT_INST(STA)     /* Store Accumulator in Memory */ \
+    TAOT_INST(STX)     /* Store Index X in Memory */ \
+    TAOT_INST(STY)     /* Store Index Y in Memory */ \
+\
+    TAOT_INST(TAX)     /* Transfer Accumulator to Index X */ \
+    TAOT_INST(TAY)     /* Transfer Accumulator to Index Y */ \
+    TAOT_INST(TSX)     /* Transfer Stack Pointer to Index X */ \
+    TAOT_INST(TXA)     /* Transfer Index X to Accumulator */ \
+    TAOT_INST(TXS)     /* Transfer Index X to Stack Pointer */ \
+    TAOT_INST(TYA)     /* Transfer Index Y to Accumulator */ \
+\
+    TAOT_INST(NOOP)
+
 typedef enum {
-    taot_INVALID, // Invalid instrution
-
-    taot_ADC,     // Add Memory to Accumulator with Carry
-    taot_AND,     // "AND" Memory with Accumulator
-    taot_ASL,     // Shift Left One Bit (Memory or Accumulator)
-
-    taot_BCC,     // Branch on Carry Clear
-    taot_BCS,     // Branch on Carry Set
-    taot_BEQ,     // Branch on Result Zero
-    taot_BIT,     // Test Bits in Memory with Accumulator
-    taot_BMI,     // Branch on Result Minus
-    taot_BNE,     // Branch on Result not Zero
-    taot_BPL,     // Branch on Result Plus
-    taot_BRK,     // Force Break
-    taot_BVC,     // Branch on Overflow Clear
-    taot_BVS,     // Branch on Overflow Set
-
-    taot_CLC,     // Clear Carry Flag
-    taot_CLD,     // Clear Decimal Mode
-    taot_CLI,     // Clear interrupt Disable Bit
-    taot_CLV,     // Clear Overflow Flag
-    taot_CMP,     // Compare Memory and Accumulator
-    taot_CPX,     // Compare Memory and Index X
-    taot_CPY,     // Compare Memory and Index Y
-
-    taot_DEC,     // Decrement Memory by One
-    taot_DEX,     // Decrement Index X by One
-    taot_DEY,     // Decrement Index Y by One
-
-    taot_EOR,     // "Exclusive-Or" Memory with Accumulator
-
-    taot_INC,     // Increment Memory by One
-    taot_INX,     // Increment Index X by One
-    taot_INY,     // Increment Index Y by One
-
-    taot_JMP,     // Jump to New Location
-    taot_JMPI,     // Jump to New Location
-
-    taot_JSR,     // Jump to New Location Saving Return Address
-
-    taot_LDA,     // Load Accumulator with Memory
-    taot_LDX,     // Load Index X with Memory
-    taot_LDY,     // Load Index Y with Memory
-    taot_LSR,     // Shift Right One Bit (Memory or Accumulator)
-
-    taot_NOP,     // No Operation
-
-    taot_ORA,     // "OR" Memory with Accumulator
-
-    taot_PHA,     // Push Accumulator on Stack
-    taot_PHP,     // Push Processor Status on Stack
-    taot_PLA,     // Pull Accumulator from Stack
-    taot_PLP,     // Pull Processor Status from Stack
-
-    taot_ROL,     // Rotate One Bit Left (Memory or Accumulator)
-    taot_ROR,     // Rotate One Bit Right (Memory or Accumulator)
-    taot_RTI,     // Return from Interrupt
-    taot_RTS,     // Return from Subroutine
-
-    taot_SBC,     // Subtract Memory from Accumulator with Borrow
-    taot_SEC,     // Set Carry Flag
-    taot_SED,     // Set Decimal Mode
-    taot_SEI,     // Set Interrupt Disable Status
-    taot_STA,     // Store Accumulator in Memory
-    taot_STX,     // Store Index X in Memory
-    taot_STY,     // Store Index Y in Memory
-
-    taot_TAX,     // Transfer Accumulator to Index X
-    taot_TAY,     // Transfer Accumulator to Index Y
-    taot_TSX,     // Transfer Stack Pointer to Index X
-    taot_TXA,     // Transfer Index X to Accumulator
-    taot_TXS,     // Transfer Index X to Stack Pointer
-    taot_TYA,     // Transfer Index Y to Accumulator
-
-    taot_NOOP
+#define TAOT_INST(name) taot_##name,
+    TAOT_INSTRUCTIONS
+#undef TAOT_INST
 } taot_inst;
+
+static const char * taot_instruction_names[] = {
+#define TAOT_INST(name) #name,
+    TAOT_INSTRUCTIONS
+#undef TAOT_INST
+};
+#undef TAOT_INSTRUCTIONS
 
 static const uint64_t taot_translation_table[0xff] = {
     // Loads
