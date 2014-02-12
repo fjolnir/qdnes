@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     0xA2, 0x00, 0xA9, 0x05, 0xE8, 0x8E, 0x00, 0x00, 0xCD, 0x00, 0x00, 0xD0, 0xF7
     };
     memcpy(cpu.mem + cpu.regs.pc, program, sizeof(program));
-    fprintf(stderr, "Running program (%d bytes):\n", sizeof(program));
+    fprintf(stderr, "Running program (%lu bytes):\n", sizeof(program));
 
     taot_dumpmem(&cpu, cpu.regs.pc, cpu.regs.pc + 31);
     fputs("\n---------------\n\n", stderr);
