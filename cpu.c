@@ -320,26 +320,26 @@ void taot_dumpregs(taot *cpu)
 
 void taot_dumpmem(taot *cpu, uint16_t start, uint16_t end)
 {
-    start -= MIN(start, (start + 1)%16);
+    uint16_t const line_len = 16;
+    start -= MIN(start, (start + 1)%line_len);
     if(end == 0)
         end = sizeof(cpu->mem)-1;
     else
-        end = MIN(sizeof(cpu->mem)-1, end + (end + 1)%16);
+        end = MIN(sizeof(cpu->mem)-1, end + (end + 1)%line_len);
 
     fprintf(stderr, "Bytes %d to %d (out of: %lu):\n", start, end, sizeof(cpu->mem));
-    for(uint16_t i = start; i <= end; i += 16) {
-        fprintf(stderr, "%6.1d: ", i);
+    for(uint16_t i = start; i <= end; i += line_len) {
+        fprintf(stderr, "0x%.4x: ", i);
         // HEX
-        for(uint16_t j = i; j < i+16; j += 4) {
+        for(uint16_t j = i; j < i+line_len; j += 4) {
             fprintf(stderr, "%.2x%.2x%.2x%.2x ",
                     cpu->mem[j], cpu->mem[j+1], cpu->mem[j+2],cpu->mem[j+3]);
         }
         // ASCII
-        char str_buf[16];
+        char str_buf[line_len];
         char *c = str_buf;
         memcpy(str_buf, cpu->mem+i, sizeof(str_buf));
         DUFF(sizeof(str_buf), if(!INRANGE(*c++, 0x20, 0x7e)) *(c-1) = '.');
-        fprintf(stderr, "| %s", str_buf);
-        fputs("\n", stderr);
+        fprintf(stderr, "| %s\n", str_buf);
     }
 }
