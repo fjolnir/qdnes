@@ -4,7 +4,7 @@
 #import <string.h>
 #import <assert.h>
 
-void taot_loadinst(taot *cpu, taot_inst *out_inst, taot_addr_mode *out_mode);
+void taot_decode_opcode(uint8_t opcode, taot_inst *out_inst, taot_addr_mode *out_mode);
 uint16_t taot_load_operand(taot *cpu, taot_addr_mode mode);
 uint8_t taot_loadmem8(taot *cpu, uint16_t addr);
 uint16_t taot_loadmem16(taot *cpu, uint16_t addr);
@@ -42,11 +42,11 @@ void taot_cycle(taot *cpu)
     taot_inst op;
     taot_addr_mode addr_mode;
     uint16_t const old_pc = cpu->regs.pc;
-    taot_loadinst(cpu, &op, &addr_mode);
+    uint8_t const opcode = taot_pop8_pc(cpu);
+    taot_decode_opcode(opcode, &op, &addr_mode);
     uint16_t const operand_addr = taot_load_operand(cpu, addr_mode);
 
     fprintf(stderr, "\e[34m0x%.4x\e[39m \e[1m%s\e[0m 0x%.4x\n", old_pc, taot_instruction_names[op], operand_addr);
-//    taot_perform_op(cpu, op, operand_addr);
 
 #define SET_FLAG(name, status...) if(status) cpu->regs.flags |=  taot_##name##_flag; \
                                   else       cpu->regs.flags &= ~taot_##name##_flag;
@@ -356,6 +356,8 @@ void taot_cycle(taot *cpu)
         default:
             goto unhandled_inst;
     }
+
+    cpu->cycles += taot_cycles[opcode];
     return;
 unhandled_inst:
     fprintf(stderr, "unhandled instruction: 0x%x\n", (int)op);
@@ -381,10 +383,9 @@ void taot_storemem16(taot *cpu, uint16_t addr, uint16_t val)
      cpu->mem[addr+1] = val << 8;
 }
 
-void taot_loadinst(taot *cpu, taot_inst *out_inst, taot_addr_mode *out_mode)
+void taot_decode_opcode(uint8_t opcode, taot_inst *out_inst, taot_addr_mode *out_mode)
 {
-    uint64_t const op = taot_translation_table[taot_pop8_pc(cpu)];
-
+    uint64_t const op = taot_translation_table[opcode];
     *out_inst = op & 0xffff;
     *out_mode = op >> 32;
 }

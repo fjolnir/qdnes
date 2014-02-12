@@ -16,6 +16,7 @@ typedef struct {
         } regs;
         uint8_t regbuf[7];
     };
+    uint64_t cycles;
     bool crashed;
 } taot; // TwoAOhThree
 
