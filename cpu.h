@@ -1,5 +1,7 @@
-// Ricoh 2A03 emulator
+// Ricoh 2A03 emulator (6502 with minor differences)
+// http://www.masswerk.at/6502/6502_instruction_set.html
 #import <stdint.h>
+#import <stdbool.h>
 
 typedef struct {
     uint8_t mem[0x10000]; // 64k
@@ -14,6 +16,7 @@ typedef struct {
         } regs;
         uint8_t regbuf[7];
     };
+    bool crashed;
 } taot; // TwoAOhThree
 
 typedef enum {
