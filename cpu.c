@@ -9,28 +9,31 @@ uint16_t taot_load_operand(taot *cpu, taot_addr_mode mode);
 uint8_t taot_loadmem8(taot *cpu, uint16_t addr);
 uint16_t taot_loadmem16(taot *cpu, uint16_t addr);
 void taot_storemem8(taot *cpu, uint16_t addr, uint8_t val);
+void taot_storemem16(taot *cpu, uint16_t addr, uint16_t val);
 void taot_push8(taot *cpu, uint8_t val);
 uint8_t taot_pop8(taot *cpu);
+void taot_push16(taot *cpu, uint16_t val);
+uint16_t taot_pop16(taot *cpu);
 uint8_t taot_pop8_pc(taot *cpu);
 uint16_t taot_pop16_pc(taot *cpu);
 
 void taot_init(taot *cpu)
 {
     // Reset memory
-    memset(cpu->mem, 0, sizeof(cpu->mem));
-    memset(cpu->mem, 0xffff, 0x1000 / 2);
-    for(int i = 0; i < 4*0x800; i += 0x800) {
-        cpu->mem[i + 0x008] = 0xF7;
-        cpu->mem[i + 0x009] = 0xEF;
-        cpu->mem[i + 0x00a] = 0xDF;
-        cpu->mem[i + 0x00f] = 0xBF;
-    }
+    memset(cpu->mem, 0, 0x10000);
+    memset(cpu->mem, 0xffff, 0x2000);
+//    for(int i = 0; i < 4*0x800; i += 0x800) {
+//        cpu->mem[i + 0x008] = 0xF7;
+//        cpu->mem[i + 0x009] = 0xEF;
+//        cpu->mem[i + 0x00a] = 0xDF;
+//        cpu->mem[i + 0x00f] = 0xBF;
+//    }
 
     // Reset registers
     memset(cpu->regbuf, 0, sizeof(cpu->regbuf));
     cpu->regs.sp    = 0xff;
     cpu->regs.pc    = 0x8000-1;
-    cpu->regs.flags = taot_interrupt_flag | taot_zero_flag;
+    cpu->regs.flags = taot_int_disable_flag | taot_zero_flag;
 
 }
 
@@ -132,7 +135,14 @@ void taot_cycle(taot *cpu)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BRK: // interrupt
-            goto unhandled_inst; // TODO
+            taot_push16(cpu, cpu->regs.pc);
+            taot_push8(cpu, cpu->regs.flags);
+            SET_FLAG(break, true);
+            cpu->regs.pc = taot_loadmem16(cpu, taot_irq_vectors[taot_interrupt]);
+            break;
+        case taot_RTI: // return from interrupt
+            cpu->regs.flags = taot_pop8(cpu);
+            cpu->regs.pc    = taot_pop16(cpu);
             break;
         case taot_BVC: // branch on overflow clear
             if((cpu->regs.flags & taot_overflow_flag) == 0)
@@ -149,7 +159,7 @@ void taot_cycle(taot *cpu)
             goto unhandled_inst;
             break;
         case taot_CLI: // clear interrupt disable
-            SET_FLAG(interrupt, false);
+            SET_FLAG(int_disable, false);
             break;
         case taot_CLV: // clear overflow
             SET_FLAG(overflow, false);
@@ -252,7 +262,7 @@ void taot_cycle(taot *cpu)
             taot_push8(cpu, cpu->regs.acc);
             break;
         case taot_PHP: // push processor status (SR)
-            taot_push8(cpu, cpu->regs.flags | taot_breakpoint_flag);
+            taot_push8(cpu, cpu->regs.flags | taot_break_flag);
             break;
         case taot_PLA: // pull accumulator
             cpu->regs.acc = taot_pop8(cpu);
@@ -286,9 +296,6 @@ void taot_cycle(taot *cpu)
             else
                 taot_storemem8(cpu, operand_addr, t1);
             break;
-        case taot_RTI: // return from interrupt
-            goto unhandled_inst; // TODO
-            break;
         case taot_RTS: // return from subroutine
             cpu->regs.pc = taot_pop8(cpu) | (taot_pop8(cpu) << 8);
             break;
@@ -310,7 +317,7 @@ void taot_cycle(taot *cpu)
             goto unhandled_inst;
             break;
         case taot_SEI: // set interrupt disable
-            SET_FLAG(interrupt, true);
+            SET_FLAG(int_disable, true);
             break;
         case taot_STA: // store accumulator
             taot_storemem8(cpu, operand_addr, cpu->regs.acc);
@@ -374,6 +381,11 @@ void taot_storemem8(taot *cpu, uint16_t addr, uint8_t val)
 {
      cpu->mem[addr] = val;
 }
+void taot_storemem16(taot *cpu, uint16_t addr, uint16_t val)
+{
+     cpu->mem[addr]   = val & 0xff;
+     cpu->mem[addr+1] = val << 8;
+}
 
 void taot_loadinst(taot *cpu, taot_inst *out_inst, taot_addr_mode *out_mode)
 {
@@ -415,7 +427,7 @@ uint16_t taot_load_operand(taot *cpu, taot_addr_mode mode)
             return cpu->regs.pc + 1 + (int8_t)taot_pop8_pc(cpu);
         default:
             fprintf(stderr, "Invalid addressing mode: %d\n", mode);
-            assert(0);
+            cpu->crashed = true;
     }
 }
 
@@ -424,12 +436,22 @@ void taot_push8(taot *cpu, uint8_t val)
     taot_storemem8(cpu, 0x100 | cpu->regs.sp, val);
     --cpu->regs.sp;
 }
-
 uint8_t taot_pop8(taot *cpu)
 {
     return taot_loadmem8(cpu, cpu->regs.sp++);
 }
 
+void taot_push16(taot *cpu, uint16_t val)
+{
+    taot_storemem16(cpu, cpu->regs.sp, val);
+    cpu->regs.sp -= 2;
+}
+uint16_t taot_pop16(taot *cpu)
+{
+    uint16_t const val = taot_loadmem16(cpu, cpu->regs.sp);
+    cpu->regs.sp += 2;
+    return val;
+}
 uint8_t taot_pop8_pc(taot *cpu)
 {
     return taot_loadmem8(cpu, cpu->regs.pc++);
@@ -439,6 +461,17 @@ uint16_t taot_pop16_pc(taot *cpu)
     uint16_t const val = taot_loadmem16(cpu, cpu->regs.pc);
     cpu->regs.pc += 2;
     return val;
+}
+
+void taot_irq(taot *cpu, taot_irq_type type)
+{
+    if(type == taot_interrupt && (cpu->regs.flags & taot_int_disable_flag))
+        return;
+
+    taot_push16(cpu, cpu->regs.pc);
+    taot_push8(cpu, cpu->regs.flags);
+
+    cpu->regs.pc = taot_loadmem16(cpu, taot_irq_vectors[type]);
 }
 
 void taot_dumpregs(taot *cpu)

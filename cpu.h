@@ -20,12 +20,24 @@ typedef struct {
 } taot; // TwoAOhThree
 
 typedef enum {
-    taot_carry_flag      = 1,
-    taot_zero_flag       = 1<<1,
-    taot_interrupt_flag  = 1<<2,
-    taot_breakpoint_flag = 1<<4,
-    taot_overflow_flag   = 1<<6,
-    taot_sign_flag       = 1<<7
+    taot_interrupt,  // Standard Interrupt
+    taot_nmi,        // Non-maskable
+    taot_reset       // Reset CPU
+} taot_irq_type;
+
+static uint16_t const taot_irq_vectors[] = {
+    [taot_nmi]       = 0xfffa,
+    [taot_reset]     = 0xfffc,
+    [taot_interrupt] = 0xfffe
+};
+
+typedef enum {
+    taot_carry_flag       = 1,
+    taot_zero_flag        = 1<<1,
+    taot_int_disable_flag = 1<<2,
+    taot_break_flag       = 1<<4,
+    taot_overflow_flag    = 1<<6,
+    taot_sign_flag        = 1<<7
 } taot_flag;
 
 typedef enum {
