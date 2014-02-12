@@ -370,7 +370,6 @@ uint8_t taot_loadmem8(taot *cpu, uint16_t addr)
 }
 uint16_t taot_loadmem16(taot *cpu, uint16_t addr)
 {
-//    fprintf(stderr, "load16: 0x%x | (0x%x << 8)\n",  cpu->mem[addr], (cpu->mem[addr+1] << 8));
     return cpu->mem[addr] | (cpu->mem[addr+1] << 8);
 }
 void taot_storemem8(taot *cpu, uint16_t addr, uint8_t val)
