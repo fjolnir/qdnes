@@ -2,12 +2,6 @@ import os
 import ycm_core
 
 flags = [
-# Coiney specific
-'-ICoiney/',
-'-ICoiney/Dependencies',
-'-ICoineyKit/CoineyKit/*',
-'-ICoineyKit/Dependencies/',
-
 # General
 '-fdiagnostics-show-note-include-stack',
 '-fmacro-backtrace-limit=0',
