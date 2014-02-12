@@ -60,3 +60,7 @@
     } \
 }while(0)
 
+#define LETVAL(val_, checks...) do { \
+    typeof(val_) const val = (val_); \
+    checks; \
+} while(0)

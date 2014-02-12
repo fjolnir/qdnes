@@ -64,12 +64,6 @@ void taot_cycle(taot *cpu)
           && ((after  ^ cpu->regs.acc) & 0x80) == 0x80); \
 } while(0);
 
-
-#define LETVAL(val_, checks...) do { \
-    typeof(val_) const val = (val_); \
-    checks; \
-} while(0)
-
     uint32_t t1, t2; // For ops where the extra bits are helpful
     switch(op) {
         case taot_ADC: // add with carry
@@ -417,8 +411,10 @@ uint16_t taot_load_operand(taot *cpu, taot_addr_mode mode)
         case taot_zeropage_y:
             return (taot_pop8_pc(cpu) + cpu->regs.y) & 0xff;
         case taot_indirect:
-            assert(0); // TODO!!!
-//            uint16_t const addr = taot_loadmem16(cpu, op_addr+2);
+            LETVAL(taot_pop16_pc(cpu),
+                return taot_loadmem8(cpu, val)
+                     | ((uint16_t)taot_loadmem8(cpu, val+1) << 8);
+            );
         case taot_indirect_x:
             return taot_loadmem16(cpu, (taot_pop8_pc(cpu) + cpu->regs.x) & 0xff);
         case taot_indirect_y:
