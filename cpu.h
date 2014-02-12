@@ -314,6 +314,21 @@ static const uint64_t taot_translation_table[0xff] = {
     [0xea] = taot_NOOP,
 };
 
+static uint8_t const taot_operand_sizes[] = {
+    [taot_immediate]  = 1,
+    [taot_absolute]   = 2,
+    [taot_zeropage]   = 1,
+    [taot_implied]    = 0,
+    [taot_accum]      = 0,
+    [taot_absolute_x] = 2,
+    [taot_absolute_y] = 2,
+    [taot_zeropage_x] = 1,
+    [taot_zeropage_y] = 1,
+    [taot_indirect]   = 2,
+    [taot_indirect_x] = 1,
+    [taot_indirect_y] = 1
+};
+
 static uint8_t taot_cycles[] = {
     /*0x00*/ 7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
     /*0x10*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,

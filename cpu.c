@@ -35,6 +35,7 @@ void taot_cycle(taot *cpu)
     taot_addr_mode addr_mode;
     uint32_t const op_addr = taot_loadinst(cpu, &op, &addr_mode);
     uint16_t const operand_addr = taot_load_operand(cpu, op_addr, addr_mode);
+    cpu->regs.pc += taot_operand_sizes[addr_mode];
 
 //    taot_perform_op(cpu, op, operand_addr);
 
