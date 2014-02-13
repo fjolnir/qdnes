@@ -46,7 +46,10 @@ void taot_cycle(taot *cpu)
     taot_decode_opcode(opcode, &op, &addr_mode);
     uint16_t const operand_addr = taot_load_operand(cpu, addr_mode);
 
-    fprintf(stderr, "\e[34m0x%.4x\e[39m \e[1m%s\e[0m 0x%.4x\n", old_pc, taot_instruction_names[op], operand_addr);
+    fprintf(stderr, "\e[34m0x%.4x\e[39m \e[1m%s\e[0m 0x%.4x | "
+                    "\e[1mA\e[0m 0x%.2x \e[1mX\e[0m 0x%.2x \e[1mY\e[0m 0x%.2x\n",
+            old_pc, taot_instruction_names[op], operand_addr,
+            cpu->regs.acc, cpu->regs.x, cpu->regs.y);
 
 #define SET_FLAG(name, status...) if(status) cpu->regs.flags |=  taot_##name##_flag; \
                                   else       cpu->regs.flags &= ~taot_##name##_flag;
@@ -107,7 +110,7 @@ void taot_cycle(taot *cpu)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BEQ: // branch on equal (zero set)
-            if((cpu->regs.flags & taot_zero_flag) == 0)
+            if((cpu->regs.flags & taot_zero_flag) != 0)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BIT: // bit test
@@ -121,7 +124,7 @@ void taot_cycle(taot *cpu)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BNE: // branch on not equal (zero clear)
-            if((cpu->regs.flags & taot_zero_flag) != 0)
+            if((cpu->regs.flags & taot_zero_flag) == 0)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BPL: // branch on plus (negative clear)
@@ -129,6 +132,8 @@ void taot_cycle(taot *cpu)
                 cpu->regs.pc = operand_addr;
             break;
         case taot_BRK: // interrupt
+            cpu->crashed= true; // for debugging
+            break;
             taot_push16(cpu, cpu->regs.pc);
             taot_push8(cpu, cpu->regs.flags);
             SET_FLAG(break, true);
@@ -188,7 +193,7 @@ void taot_cycle(taot *cpu)
                    ZERO_CHK(val));
             break;
         case taot_DEY: // decrement Y
-            LETVAL(--cpu->regs.x,
+            LETVAL(--cpu->regs.y,
                    SIGN_CHK(val)
                    ZERO_CHK(val));
             break;
@@ -244,8 +249,6 @@ void taot_cycle(taot *cpu)
                        SET_FLAG(carry, val & 0x1));
                 taot_storemem8(cpu, operand_addr, taot_loadmem8(cpu, operand_addr) >> 1);
             }
-            break;
-        case taot_NOP: // no operation
             break;
         case taot_ORA: // or with accumulator
             LETVAL(cpu->regs.acc |= taot_loadmem8(cpu, operand_addr),
@@ -351,6 +354,8 @@ void taot_cycle(taot *cpu)
             LETVAL(cpu->regs.acc = cpu->regs.y,
                    SIGN_CHK(val)
                    ZERO_CHK(val));
+            break;
+        case taot_NOP: // no operation
             break;
         case taot_INVALID:
         default:

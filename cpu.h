@@ -103,8 +103,6 @@ typedef enum {
     TAOT_INST(LDY)     /* Load Index Y with Memory */ \
     TAOT_INST(LSR)     /* Shift Right One Bit (Memory or Accumulator) */ \
 \
-    TAOT_INST(NOP)     /* No Operation */ \
-\
     TAOT_INST(ORA)     /* "OR" Memory with Accumulator */ \
 \
     TAOT_INST(PHA)     /* Push Accumulator on Stack */ \
@@ -132,7 +130,7 @@ typedef enum {
     TAOT_INST(TXS)     /* Transfer Index X to Stack Pointer */ \
     TAOT_INST(TYA)     /* Transfer Index Y to Accumulator */ \
 \
-    TAOT_INST(NOOP)
+    TAOT_INST(NOP)
 
 typedef enum {
 #define TAOT_INST(name) taot_##name,
@@ -340,7 +338,7 @@ static const uint64_t taot_translation_table[0xff] = {
     [0x28] = taot_PLP | ((uint64_t)taot_implied << 32),
 
     // No-op
-    [0xea] = taot_NOOP | ((uint64_t)taot_implied << 32),
+    [0xea] = taot_NOP | ((uint64_t)taot_implied << 32),
 };
 
 static uint8_t taot_cycles[] = {
