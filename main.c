@@ -27,6 +27,6 @@ int main(int argc, char *argv[])
     taot_dumpregs(&cpu);
     taot_dumpmem(&cpu, 0, 0xff);
 
-    fprintf(stderr, "\nRan for %d cycles\n", cpu.cycles);
+    fprintf(stderr, "\nRan for %llu cycles\n", cpu.cycles);
     return 0;
 }
